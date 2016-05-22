@@ -139,9 +139,10 @@ function dummy(x)
 	end
 end
 
-assert(check_exn(dummy, 3))
+--assert(check_exn(dummy, 3))
 -------------------
 
+--assert(interp(parse({{{"lam", "a", {"+", "a", 1}}, 3}}), {}).val == 4, "appC test")
 function parse(sexp) 
 	if type(sexp[1]) == "number" then
 		return NumC:new(sexp[1])
@@ -155,6 +156,12 @@ function parse(sexp)
 		return BinopC:new(sexp[1],
 						  parse({sexp[2]}), 
 						  parse({sexp[3]}))
+    elseif sexp[1] == "lam" then
+        return LamC:new(sexp[2], parse(sexp[3]))
+    elseif type(sexp[1]) == "table" then
+        print(sexp[1][1])
+        return AppC:new(parse({sexp[1][1]}), 
+                        parse({sexp[1][2]}))
 	elseif type(sexp[1]) == "string" then
 		return IdC:new(sexp[1])
 	end
@@ -166,7 +173,6 @@ assert(parse({true}).val == true, "BoolV true test")
 assert(parse({false}).val == false, "BoolV false test")
 assert(parse({"a"}).val == "a", "IdC test")
 
-
 if_example = parse({"if", true, 3, 5})
 assert(if_example.test.val == true and 
 	   if_example.t.val == 3 and
@@ -176,6 +182,16 @@ binop_example = parse({"+", 3, 4})
 assert(binop_example.name == "+" and
        binop_example.left.val == 3 and
        binop_example.right.val == 4, "BinopC test")
+
+lam_example = parse({"lam", "a", {"+", "a", "a"}})
+assert(lam_example.params == "a" and
+       lam_example.body.name == "+" and
+       lam_example.body.left.val == "a" and
+       lam_example.body.right.val == "a", "LamC test")
+
+appc_example = parse({{"a", 3}})
+assert(appc_example.fun.val == "a" and
+       appc_example.args.val == 3, "AppC test")
 
 
 function Serialize(value)
@@ -252,6 +268,13 @@ function interp(expr, env)
 		return perform_binop(expr.name, 
 							 interp(expr.left, env),
 							 interp(expr.right, env))
+    elseif e_type == "LamC" then
+        return CloV:new(expr.params, expr.body, env)
+    elseif e_type == "AppC" then
+        closure = interp(expr.fun, env)
+
+        closure.env[expr.params] = interp(arg, env)
+        return interp(closure.body, closure.env)
     else
 	   error("Not a Value!")
     end
@@ -263,7 +286,13 @@ assert(interp(parse({false})).val == false, "BoolV false test")
 assert(interp(parse({"if", true, 3, 5})).val == 3, "IfC true test") 
 assert(interp(parse({"if", false, 3, 5})).val == 5, "IfC false test") 
 assert(interp(parse({"+", 3, 5})).val == 8, "BinopC + test") 
+assert(interp(parse({"lam", "a", {"*", 3, "a"}}), {}).params == "a", "clov test") 
+assert(interp(parse({"lam", "a", {"*", 3, "a"}}), {}).body.name == "*", "clov test") 
+assert(interp(parse({"lam", "a", {"*", 3, "a"}}), {}).body.left.val == 3, "clov test") 
+assert(interp(parse({"lam", "a", {"*", 3, "a"}}), {}).body.right.val == "a", "clov test") 
 
+
+assert(interp(parse({{{"lam", "a", {"+", "a", 1}}, 3}}), {}).val == 4, "appC test")
 
 
 
