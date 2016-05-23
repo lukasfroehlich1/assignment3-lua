@@ -148,22 +148,23 @@ function parse(sexp)
 		return NumC:new(sexp[1])
 	elseif type(sexp[1]) == "boolean" then
 		return BoolC:new(sexp[1])
-	elseif sexp[1] == "if" then
-		return IfC:new(parse({sexp[2]}),
-					   parse({sexp[3]}), 
-					   parse({sexp[4]}))
-	elseif binop[sexp[1]] then
-		return BinopC:new(sexp[1],
-						  parse({sexp[2]}), 
-						  parse({sexp[3]}))
-    elseif sexp[1] == "lam" then
-        return LamC:new(sexp[2], parse(sexp[3]))
-    elseif type(sexp[1]) == "table" then
-        print(sexp[1][1])
-        return AppC:new(parse({sexp[1][1]}), 
-                        parse({sexp[1][2]}))
 	elseif type(sexp[1]) == "string" then
 		return IdC:new(sexp[1])
+    elseif type(sexp[1]) == "table" then
+        if sexp[1][1] == "if" then
+            return IfC:new(parse({sexp[1][2]}),
+                           parse({sexp[1][3]}), 
+                           parse({sexp[1][4]}))
+        elseif binop[sexp[1][1]] then
+            return BinopC:new(sexp[1][1],
+                              parse({sexp[1][2]}), 
+                              parse({sexp[1][3]}))
+        elseif sexp[1][1] == "lam" then
+            return LamC:new(sexp[1][2], parse({sexp[1][3]}))
+        elseif len(sexp[1]) == 2 then
+            return AppC:new(parse({sexp[1][1]}), 
+                            parse({sexp[1][2]}))
+        end
 	end
 end
 
@@ -173,17 +174,17 @@ assert(parse({true}).val == true, "BoolV true test")
 assert(parse({false}).val == false, "BoolV false test")
 assert(parse({"a"}).val == "a", "IdC test")
 
-if_example = parse({"if", true, 3, 5})
+if_example = parse({{"if", true, 3, 5}})
 assert(if_example.test.val == true and 
 	   if_example.t.val == 3 and
        if_example.f.val == 5, "IfC test")
 
-binop_example = parse({"+", 3, 4})
+binop_example = parse({{"+", 3, 4}})
 assert(binop_example.name == "+" and
        binop_example.left.val == 3 and
        binop_example.right.val == 4, "BinopC test")
 
-lam_example = parse({"lam", "a", {"+", "a", "a"}})
+lam_example = parse({{"lam", "a", {"+", "a", "a"}}})
 assert(lam_example.params == "a" and
        lam_example.body.name == "+" and
        lam_example.body.left.val == "a" and
@@ -192,6 +193,14 @@ assert(lam_example.params == "a" and
 appc_example = parse({{"a", 3}})
 assert(appc_example.fun.val == "a" and
        appc_example.args.val == 3, "AppC test")
+
+app_lam_example = parse({{{"lam", "a", {"+", "a", 1}}, 3}})
+assert(app_lam_example.fun.params == "a" and
+       app_lam_example.fun.body.name == "+" and
+       app_lam_example.args.val == 3, "app_lam test")
+
+
+
 
 
 function Serialize(value)
@@ -272,8 +281,7 @@ function interp(expr, env)
         return CloV:new(expr.params, expr.body, env)
     elseif e_type == "AppC" then
         closure = interp(expr.fun, env)
-
-        closure.env[expr.params] = interp(arg, env)
+        closure.env[closure.params] = interp(expr.args, env)
         return interp(closure.body, closure.env)
     else
 	   error("Not a Value!")
@@ -283,16 +291,12 @@ end
 assert(interp(parse({3})).val == 3, "NumV test") 
 assert(interp(parse({true})).val == true, "BoolV true test") 
 assert(interp(parse({false})).val == false, "BoolV false test") 
-assert(interp(parse({"if", true, 3, 5})).val == 3, "IfC true test") 
-assert(interp(parse({"if", false, 3, 5})).val == 5, "IfC false test") 
-assert(interp(parse({"+", 3, 5})).val == 8, "BinopC + test") 
-assert(interp(parse({"lam", "a", {"*", 3, "a"}}), {}).params == "a", "clov test") 
-assert(interp(parse({"lam", "a", {"*", 3, "a"}}), {}).body.name == "*", "clov test") 
-assert(interp(parse({"lam", "a", {"*", 3, "a"}}), {}).body.left.val == 3, "clov test") 
-assert(interp(parse({"lam", "a", {"*", 3, "a"}}), {}).body.right.val == "a", "clov test") 
-
-
+assert(interp(parse({{"if", true, 3, 5}})).val == 3, "IfC true test") 
+assert(interp(parse({{"if", false, 3, 5}})).val == 5, "IfC false test") 
+assert(interp(parse({{"+", 3, 5}})).val == 8, "BinopC + test") 
+assert(interp(parse({{"lam", "a", {"*", 3, "a"}}}), {}).params == "a", "clov test") 
+assert(interp(parse({{"lam", "a", {"*", 3, "a"}}}), {}).body.name == "*", "clov test") 
+assert(interp(parse({{"lam", "a", {"*", 3, "a"}}}), {}).body.left.val == 3, "clov test") 
+assert(interp(parse({{"lam", "a", {"*", 3, "a"}}}), {}).body.right.val == "a", "clov test") 
 assert(interp(parse({{{"lam", "a", {"+", "a", 1}}, 3}}), {}).val == 4, "appC test")
-
-
 
